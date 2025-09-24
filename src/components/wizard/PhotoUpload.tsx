@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { UploadCloud, Image, ArrowRight, Camera, Plus, X, AlertCircle } from "lucide-react";
+import { UploadCloud, Image, ArrowRight, Camera, Plus, X, AlertCircle, Loader2 } from "lucide-react";
 import { WizardData } from "@/types/wizard";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -11,9 +11,13 @@ interface PhotoUploadProps {
     onNext: () => void;
 }
 
+const WEBHOOK_URL =
+    "https://n8n.tucbbs.com.ar/webhook-test/9751b024-2a33-4a3e-8fcc-6a75fb440acd";
+
 export default function PhotoUpload({ data, onChange, onNext }: PhotoUploadProps) {
     const [dragActive, setDragActive] = useState(false);
     const [error, setError] = useState("");
+    const [submitting, setSubmitting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleFileSelect = (files: FileList | File[]) => {
@@ -23,29 +27,24 @@ export default function PhotoUpload({ data, onChange, onNext }: PhotoUploadProps
         const validFiles: File[] = [];
         const newPreviews: string[] = [];
 
-        // Validar archivos
         for (const file of fileArray) {
             if (!file.type.startsWith("image/")) {
                 setError("Solo se permiten imágenes válidas");
                 continue;
             }
-
             if (file.size > 10 * 1024 * 1024) {
                 setError("Las imágenes deben ser menores a 10MB");
                 continue;
             }
-
             if (data.photos.length + validFiles.length >= 3) {
                 setError("Máximo 3 imágenes permitidas");
                 break;
             }
-
             validFiles.push(file);
         }
 
         if (validFiles.length === 0) return;
 
-        // Crear previews
         validFiles.forEach((file) => {
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -56,7 +55,7 @@ export default function PhotoUpload({ data, onChange, onNext }: PhotoUploadProps
                     onChange({
                         ...data,
                         photos: [...data.photos, ...validFiles],
-                        photoPreviews: [...data.photoPreviews, ...newPreviews]
+                        photoPreviews: [...data.photoPreviews, ...newPreviews],
                     });
                 }
             };
@@ -67,11 +66,8 @@ export default function PhotoUpload({ data, onChange, onNext }: PhotoUploadProps
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
         setDragActive(false);
-
         const files = e.dataTransfer.files;
-        if (files.length > 0) {
-            handleFileSelect(files);
-        }
+        if (files.length > 0) handleFileSelect(files);
     };
 
     const handleDragOver = (e: React.DragEvent) => {
@@ -86,31 +82,64 @@ export default function PhotoUpload({ data, onChange, onNext }: PhotoUploadProps
 
     const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
-        if (files && files.length > 0) {
-            handleFileSelect(files);
-        }
+        if (files && files.length > 0) handleFileSelect(files);
     };
 
     const removePhoto = (index: number) => {
         const newPhotos = data.photos.filter((_, i) => i !== index);
         const newPreviews = data.photoPreviews.filter((_, i) => i !== index);
-
-        onChange({
-            ...data,
-            photos: newPhotos,
-            photoPreviews: newPreviews
-        });
-
-        if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-        }
+        onChange({ ...data, photos: newPhotos, photoPreviews: newPreviews });
+        if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
     const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        onChange({
-            ...data,
-            prompt: e.target.value
-        });
+        onChange({ ...data, prompt: e.target.value });
+    };
+
+    // ---- NEW: enviar a n8n al continuar ----
+    const handleContinue = async () => {
+        setError("");
+        setSubmitting(true);
+        try {
+            const form = new FormData();
+
+            // Texto principal
+            form.append("prompt", data.prompt || "");
+            form.append("source", "kora-wizard");
+            form.append("step", "photo-upload");
+
+            // Metadata útil del wizard (si existe)
+            if (data.userName) form.append("userName", data.userName);
+            if (data.style) form.append("style", data.style);
+            if (data.userStyle) form.append("userStyle", data.userStyle);
+            if (data.livingStyle) form.append("livingStyle", data.livingStyle);
+            if (data.budget) form.append("budget", data.budget);
+            if (data.room) form.append("room", data.room);
+            if (data.preferences?.length)
+                data.preferences.forEach((p, i) => form.append(`preferences[${i}]`, p));
+
+            // Fotos (mismo nombre repetido = array en multipart)
+            data.photos.forEach((file, i) => {
+                form.append("photos", file, file.name || `photo_${i + 1}.jpg`);
+            });
+
+            const res = await fetch(WEBHOOK_URL, {
+                method: "POST",
+                body: form, // dejar que el navegador setee el boundary del multipart
+            });
+
+            if (!res.ok) {
+                const text = await res.text().catch(() => "");
+                throw new Error(text || `Error ${res.status} al enviar al webhook`);
+            }
+
+            // Éxito: avanzar al siguiente paso
+            onNext();
+        } catch (e: any) {
+            setError(e?.message || "No pudimos enviar los datos al webhook.");
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     return (
@@ -125,7 +154,6 @@ export default function PhotoUpload({ data, onChange, onNext }: PhotoUploadProps
                 </p>
             </div>
 
-            {/* Upload Area */}
             {data.photos.length < 3 && (
                 <div
                     className={`border-2 border-dashed rounded-3xl p-8 text-center transition-all cursor-pointer ${dragActive
@@ -148,25 +176,21 @@ export default function PhotoUpload({ data, onChange, onNext }: PhotoUploadProps
                             <p className="text-sm text-neutral-500">
                                 O haz click para seleccionar ({data.photos.length}/3)
                             </p>
-                            <p className="text-xs text-neutral-400 mt-2">
-                                PNG, JPG, WEBP hasta 10MB cada una
-                            </p>
+                            <p className="text-xs text-neutral-400 mt-2">PNG, JPG, WEBP hasta 10MB cada una</p>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Photo Grid */}
             {data.photos.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {data.photoPreviews.map((preview, index) => (
-                        <Card key={index} className="overflow-hidden bg-gradient-to-br from-white to-neutral-50/50 border-0 shadow-lg group">
+                        <Card
+                            key={index}
+                            className="overflow-hidden bg-gradient-to-br from-white to-neutral-50/50 border-0 shadow-lg group"
+                        >
                             <CardContent className="p-0 relative">
-                                <img
-                                    src={preview}
-                                    alt={`Foto ${index + 1}`}
-                                    className="w-full h-48 object-cover"
-                                />
+                                <img src={preview} alt={`Foto ${index + 1}`} className="w-full h-48 object-cover" />
                                 <Button
                                     onClick={() => removePhoto(index)}
                                     size="sm"
@@ -187,12 +211,9 @@ export default function PhotoUpload({ data, onChange, onNext }: PhotoUploadProps
                 </div>
             )}
 
-            {/* Prompt Input */}
             <div className="space-y-4">
                 <div>
-                    <h3 className="text-lg font-semibold text-neutral-800 mb-2">
-                        Describe tu visión (opcional)
-                    </h3>
+                    <h3 className="text-lg font-semibold text-neutral-800 mb-2">Describe tu visión (opcional)</h3>
                     <p className="text-sm text-neutral-600 mb-4">
                         Comparte detalles específicos sobre cómo te gustaría ver tu espacio transformado.
                     </p>
@@ -232,11 +253,18 @@ export default function PhotoUpload({ data, onChange, onNext }: PhotoUploadProps
             <div className="flex justify-between pt-6">
                 <div />
                 <Button
-                    onClick={onNext}
-                    disabled={data.photos.length === 0}
+                    onClick={handleContinue}
+                    disabled={data.photos.length === 0 || submitting}
                     className="bg-gradient-to-r from-purple-500 to-purple-500 hover:from-pruple-600 hover:to-purple-600 text-white px-6 py-3 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    Continuar
+                    {submitting ? (
+                        <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Enviando…
+                        </>
+                    ) : (
+                        "Continuar"
+                    )}
                 </Button>
             </div>
         </div>
