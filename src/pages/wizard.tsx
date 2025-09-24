@@ -5,7 +5,6 @@ import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/router";
 import UserStep from "@/components/wizard/UserStep";
 import PhotoUpload from "@/components/wizard/PhotoUpload";
-import PreferencesStep from "@/components/wizard/PreferencesStep";
 import ConfirmationStep from "@/components/wizard/ConfirmationStep";
 import { WizardData } from "@/types/wizard";
 
@@ -32,8 +31,7 @@ export default function WizardPage() {
     const steps = [
         { number: 1, title: "Perfil", description: "Conozcámonos" },
         { number: 2, title: "Fotos", description: "Sube tu espacio" },
-        { number: 3, title: "Estilo", description: "Define tu gusto" },
-        { number: 4, title: "Confirmar", description: "Revisa y lanza" },
+        { number: 3, title: "Confirmar", description: "Revisa y lanza" },
     ] as const;
 
     const handleNext = () => currentStep < 4 && setCurrentStep((s) => s + 1);
@@ -49,7 +47,6 @@ export default function WizardPage() {
             formData.append("style", wizardData.style);
             formData.append("budget", wizardData.budget);
             formData.append("room", wizardData.room);
-            formData.append("preferences", JSON.stringify(wizardData.preferences));
             formData.append("prompt", wizardData.prompt);
 
             const response = await fetch("/api/kora/jobs", { method: "POST", body: formData });
@@ -153,9 +150,6 @@ export default function WizardPage() {
                                 <PhotoUpload data={wizardData} onChange={setWizardData} onNext={handleNext} />
                             )}
                             {currentStep === 3 && (
-                                <PreferencesStep data={wizardData} onChange={setWizardData} onNext={handleNext} />
-                            )}
-                            {currentStep === 4 && (
                                 <ConfirmationStep
                                     data={wizardData}
                                     onChange={setWizardData}

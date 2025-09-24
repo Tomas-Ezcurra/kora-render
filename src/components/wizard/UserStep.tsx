@@ -24,11 +24,6 @@ export default function UserStep({ data, onChange, onNext }: UserStepProps) {
         { id: "relajado", label: "Relajado", description: "Sereno, tonos suaves" },
     ];
 
-    const personalityTraits = [
-        "Detallista", "Creativo/a", "Práctico/a", "Aventurero/a",
-        "Organizado/a", "Soñador/a", "Social", "Tranquilo/a",
-        "Innovador/a", "Tradicional", "Espontáneo/a", "Meticuloso/a",
-    ];
 
     const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         onChange({ ...data, userName: e.target.value });
@@ -96,87 +91,12 @@ export default function UserStep({ data, onChange, onNext }: UserStepProps) {
                     <div className="text-sm text-rose-500">El nombre es requerido para continuar.</div>
                 ) : null}
             </section>
-
-            {/* Estilo de vida */}
-            <section className="space-y-4">
-                <div className="flex items-center gap-2">
-                    <Palette className="w-5 h-5 text-neutral-600" />
-                    <h3 className="text-lg font-semibold text-neutral-900">¿Cómo describís tu estilo de vida?</h3>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                    {livingStyles.map((style) => {
-                        const selected = data.livingStyle === style.id;
-                        return (
-                            <button
-                                type="button"
-                                key={style.id}
-                                onClick={() => handleLivingStyleChange(style.id)}
-                                className={`text-left rounded-2xl p-4 transition-all group relative ${selected
-                                    ? "bg-gradient-to-br from-violet-50 to-fuchsia-50 ring-2 ring-violet-400 shadow-xl"
-                                    : "bg-white/80 ring-1 ring-neutral-200 hover:ring-violet-200 hover:shadow-md"
-                                    }`}
-                                aria-pressed={selected}
-                            >
-                                {/* check */}
-                                {selected && (
-                                    <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-violet-600 text-white text-xs font-medium px-2 py-1 shadow">
-                                        <Check className="w-3.5 h-3.5" /> Elegido
-                                    </span>
-                                )}
-                                <div className="flex items-start gap-3">
-                                    <div className="text-2xl leading-none">{style.emoji}</div>
-                                    <div>
-                                        <div className="text-neutral-900 font-medium">{style.label}</div>
-                                        <div className="text-neutral-600 text-sm">{style.description}</div>
-                                    </div>
-                                </div>
-                            </button>
-                        );
-                    })}
-                </div>
-            </section>
-
-            {/* Personalidad */}
-            <section className="space-y-3">
-                <div className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-neutral-600" />
-                    <h3 className="text-lg font-semibold text-neutral-900">¿Cómo te describís?</h3>
-                </div>
-                <p className="text-sm text-neutral-600">Elegí las palabras que mejor te representen.</p>
-
-                <div className="flex flex-wrap gap-2">
-                    {personalityTraits.map((trait) => {
-                        const active = (data.preferences || []).includes(trait);
-                        return (
-                            <Badge
-                                key={trait}
-                                role="switch"
-                                aria-checked={active}
-                                onClick={() => handlePersonalityToggle(trait)}
-                                className={`cursor-pointer px-3 py-2 text-sm rounded-full transition-all border ${active
-                                    ? "bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white border-transparent shadow"
-                                    : "bg-white/80 text-violet-800 border-violet-200 hover:bg-violet-50"
-                                    }`}
-                            >
-                                {trait}
-                            </Badge>
-                        );
-                    })}
-                </div>
-
-                {(data.preferences?.length ?? 0) > 0 && (
-                    <div className="text-sm text-violet-700">
-                        Perfecto{data.userName ? `, ${data.userName}` : ""}. Esto nos ayuda a afinar tus renders.
-                    </div>
-                )}
-            </section>
-
+            
             {/* CTA */}
             <div className="flex justify-end pt-4">
                 <Button
                     onClick={onNext}
-                    disabled={!isFormValid}
+                    
                     className="bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white px-6 h-12 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
                 >
                     {data.userName?.trim() ? `Continuar, ${data.userName}` : "Continuar"}
