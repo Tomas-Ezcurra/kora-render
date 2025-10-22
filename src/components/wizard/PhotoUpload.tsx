@@ -1,18 +1,21 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { UploadCloud, Image, ArrowRight, Camera, Plus, X, AlertCircle, Loader2 } from "lucide-react";
+import { Camera, Plus, X, AlertCircle, Loader2 } from "lucide-react";
 import { WizardData } from "@/types/wizard";
 import { Textarea } from "@/components/ui/textarea";
+
+// ✅ Apuntamos al proxy interno para evitar CORS/CSP/mixed content
+const WEBHOOK_PROXY = "https://n8n.tucbbs.com.ar/webhook-test/9751b024-2a33-4a3e-8fcc-6a75fb440acd";
+
+// Timeout de red para evitar que el usuario quede “colgado”
+const POST_TIMEOUT_MS = 25000;
 
 interface PhotoUploadProps {
     data: WizardData;
     onChange: (data: WizardData) => void;
     onNext: () => void;
 }
-
-const WEBHOOK_URL =
-    "https://n8n.tucbbs.com.ar/webhook-test/9751b024-2a33-4a3e-8fcc-6a75fb440acd";
 
 export default function PhotoUpload({ data, onChange, onNext }: PhotoUploadProps) {
     const [dragActive, setDragActive] = useState(false);
@@ -29,15 +32,15 @@ export default function PhotoUpload({ data, onChange, onNext }: PhotoUploadProps
 
         for (const file of fileArray) {
             if (!file.type.startsWith("image/")) {
-                setError("Solo se permiten imágenes válidas");
+                setError("Solo se permiten imágenes válidas.");
                 continue;
             }
             if (file.size > 10 * 1024 * 1024) {
-                setError("Las imágenes deben ser menores a 10MB");
+                setError("Las imágenes deben ser menores a 10MB.");
                 continue;
             }
             if (data.photos.length + validFiles.length >= 3) {
-                setError("Máximo 3 imágenes permitidas");
+                setError("Máximo 3 imágenes permitidas.");
                 break;
             }
             validFiles.push(file);
@@ -96,48 +99,64 @@ export default function PhotoUpload({ data, onChange, onNext }: PhotoUploadProps
         onChange({ ...data, prompt: e.target.value });
     };
 
-    // ---- NEW: enviar a n8n al continuar ----
+    // ---- Enviar a n8n vía proxy interno ----
     const handleContinue = async () => {
         setError("");
+
+        // Validaciones mínimas UX
+        if (data.photos.length === 0) {
+            setError("Sube al menos una foto.");
+            return;
+        }
+
         setSubmitting(true);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), POST_TIMEOUT_MS);
+
         try {
             const form = new FormData();
 
-            // Texto principal
+            // Texto y metadata
             form.append("prompt", data.prompt || "");
             form.append("source", "kora-wizard");
             form.append("step", "photo-upload");
 
-            // Metadata útil del wizard (si existe)
-            if (data.userName) form.append("userName", data.userName);
-            if (data.style) form.append("style", data.style);
-            if (data.userStyle) form.append("userStyle", data.userStyle);
-            if (data.livingStyle) form.append("livingStyle", data.livingStyle);
-            if (data.budget) form.append("budget", data.budget);
-            if (data.room) form.append("room", data.room);
-            if (data.preferences?.length)
+            if ((data as any).userName) form.append("userName", (data as any).userName);
+            if ((data as any).style) form.append("style", (data as any).style);
+            if ((data as any).userStyle) form.append("userStyle", (data as any).userStyle);
+            if ((data as any).livingStyle) form.append("livingStyle", (data as any).livingStyle);
+            if ((data as any).budget) form.append("budget", (data as any).budget);
+            if ((data as any).room) form.append("room", (data as any).room);
+            if (Array.isArray(data.preferences) && data.preferences.length) {
                 data.preferences.forEach((p, i) => form.append(`preferences[${i}]`, p));
+            }
 
-            // Fotos (mismo nombre repetido = array en multipart)
+            // Fotos (array multipart)
             data.photos.forEach((file, i) => {
                 form.append("photos", file, file.name || `photo_${i + 1}.jpg`);
             });
 
-            const res = await fetch(WEBHOOK_URL, {
+            const res = await fetch(WEBHOOK_PROXY, {
                 method: "POST",
-                body: form, // dejar que el navegador setee el boundary del multipart
+                body: form,
+                signal: controller.signal,
             });
 
+            const text = await res.text().catch(() => "");
             if (!res.ok) {
-                const text = await res.text().catch(() => "");
-                throw new Error(text || `Error ${res.status} al enviar al webhook`);
+                throw new Error(`${res.status} ${res.statusText}${text ? `: ${text}` : ""}`);
             }
 
-            // Éxito: avanzar al siguiente paso
-            onNext();
+            onNext(); // éxito
         } catch (e: any) {
-            setError(e?.message || "No pudimos enviar los datos al webhook.");
+            if (e?.name === "AbortError") {
+                setError("La conexión tardó demasiado. Intenta nuevamente.");
+            } else {
+                // Mensaje claro de red
+                setError(e?.message || "No pudimos enviar los datos. Reintenta.");
+            }
         } finally {
+            clearTimeout(timer);
             setSubmitting(false);
         }
     };
@@ -255,7 +274,7 @@ export default function PhotoUpload({ data, onChange, onNext }: PhotoUploadProps
                 <Button
                     onClick={handleContinue}
                     disabled={data.photos.length === 0 || submitting}
-                    className="bg-gradient-to-r from-purple-500 to-purple-500 hover:from-pruple-600 hover:to-purple-600 text-white px-6 py-3 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-gradient-to-r from-purple-500 to-purple-500 hover:from-purple-600 hover:to-purple-600 text-white px-6 py-3 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {submitting ? (
                         <>
