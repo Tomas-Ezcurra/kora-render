@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { User, Palette, Sofa, Check, Sparkles } from "lucide-react";
+import { User, Sofa } from "lucide-react";
 import { WizardData } from "@/types/wizard";
 
 interface UserStepProps {
@@ -14,37 +13,35 @@ interface UserStepProps {
 
 export default function UserStep({ data, onChange, onNext }: UserStepProps) {
     const [touched, setTouched] = useState(false);
+    const [userId, setUserId] = useState<string>("");
 
-    const livingStyles = [
-        { id: "minimalista", label: "Minimalista", description: "Simple, funcional, sin ruido visual" },
-        { id: "acogedor", label: "Acogedor", description: "Cálido, texturas y confort" },
-        { id: "moderno", label: "Moderno", description: "Líneas limpias y actual" },
-        { id: "bohemio", label: "Bohemio", description: "Ecléctico, artístico y libre" },
-        { id: "elegante", label: "Elegante", description: "Sobrio, materiales premium" },
-        { id: "relajado", label: "Relajado", description: "Sereno, tonos suaves" },
-    ];
-
+    useEffect(() => {
+        const existingUserId = localStorage.getItem("kora_user_id");
+        if (existingUserId) {
+            setUserId(existingUserId);
+        } else {
+            const newUserId = crypto.randomUUID();
+            localStorage.setItem("kora_user_id", newUserId);
+            setUserId(newUserId);
+        }
+    }, []);
 
     const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         onChange({ ...data, userName: e.target.value });
         if (!touched) setTouched(true);
     };
 
-    const handleLivingStyleChange = (styleId: string) => {
-        onChange({ ...data, livingStyle: styleId });
+    const handleNext = () => {
+        if (!data.userName?.trim() || !userId) return;
+        
+        onChange({ ...data, userId });
+        onNext();
     };
 
-    const handlePersonalityToggle = (trait: string) => {
-        const list = data.preferences || [];
-        const newPreferences = list.includes(trait) ? list.filter(p => p !== trait) : [...list, trait];
-        onChange({ ...data, preferences: newPreferences });
-    };
-
-    const isFormValid = Boolean(data.userName?.trim() && data.livingStyle);
+    const isFormValid = Boolean(data.userName?.trim());
 
     return (
         <div className="font-sans space-y-10">
-            {/* Encabezado cálido */}
             <Card className="border border-white/60 bg-white/75 backdrop-blur-xl rounded-3xl shadow-xl">
                 <CardContent className="px-6 md:px-10 py-10">
                     <div className="text-center max-w-2xl mx-auto">
@@ -61,7 +58,6 @@ export default function UserStep({ data, onChange, onNext }: UserStepProps) {
                 </CardContent>
             </Card>
 
-            {/* Nombre */}
             <section className="space-y-4">
                 <div className="flex items-center gap-2">
                     <Sofa className="w-5 h-5 text-neutral-600" />
@@ -77,26 +73,25 @@ export default function UserStep({ data, onChange, onNext }: UserStepProps) {
                         placeholder="Tu nombre"
                         aria-label="Tu nombre"
                         className={`pl-12 pr-4 h-12 text-[16px] rounded-2xl bg-white/85 border ${touched && !data.userName?.trim()
-                            ? "border-rose-300 focus-visible:ring-rose-200"
-                            : "border-neutral-200 focus-visible:ring-violet-200"
+                                ? "border-rose-300 focus-visible:ring-rose-200"
+                                : "border-neutral-200 focus-visible:ring-violet-200"
                             } focus-visible:ring-2 focus-visible:border-violet-400 transition`}
                     />
                 </div>
 
                 {data.userName?.trim() ? (
                     <div className="text-sm text-violet-700">
-                        ¡Genial, <span className="font-medium">{data.userName}</span>! Sigamos con tu estilo.
+                        ¡Genial, <span className="font-medium">{data.userName}</span>! Sigamos con tus fotos.
                     </div>
                 ) : touched ? (
                     <div className="text-sm text-rose-500">El nombre es requerido para continuar.</div>
                 ) : null}
             </section>
-            
-            {/* CTA */}
+
             <div className="flex justify-end pt-4">
                 <Button
-                    onClick={onNext}
-                    
+                    onClick={handleNext}
+                    disabled={!isFormValid}
                     className="bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white px-6 h-12 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
                 >
                     {data.userName?.trim() ? `Continuar, ${data.userName}` : "Continuar"}

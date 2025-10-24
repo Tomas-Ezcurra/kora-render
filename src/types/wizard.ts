@@ -9,4 +9,5 @@ export interface WizardData {
     userName: string;
     userStyle: string;
     livingStyle: string;
+    userId?: string;
 }
