@@ -73,18 +73,19 @@ export default function WizardPage() {
             }
 
             console.log("Enviando solicitud a n8n...");
-            const response = await sendInitialRequest(
-                wizardData.userId,
-                wizardData.prompt,
-                firstImageBase64
-            );
+            const { image_url } = await sendInitialRequest(
+    wizardData.userId,
+    wizardData.prompt,
+    firstImageBase64
+);
 
-            if (response.image_url) {
-                setResultImageUrl(response.image_url);
-                setCurrentStep("result");
-            } else {
-                throw new Error("No se recibió URL de imagen en la respuesta");
-            }
+if (image_url) {
+    setResultImageUrl(image_url);
+    setCurrentStep("result");
+} else {
+    throw new Error("No se recibió URL de imagen en la respuesta");
+}
+
         } catch (err) {
             console.error("Error al enviar solicitud inicial:", err);
             const errorMessage = err instanceof Error ? err.message : "Hubo un error al generar tu render. Por favor, intenta nuevamente.";
