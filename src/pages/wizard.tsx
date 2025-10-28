@@ -242,7 +242,7 @@ if (image_url) {
             )}
 
             <main className="px-4 md:px-6 lg:px-8 py-10 md:py-12">
-                <div className="max-w-2xl mx-auto">
+                <div className="max-w-[800px] mx-auto">
                     {error && (
                         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 text-sm">
                             {error}

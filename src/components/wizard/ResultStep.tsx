@@ -79,13 +79,13 @@ export default function ResultStep({
 
             {/* Toolbar centrada arriba */}
             <div className="flex justify-center items-center mt-2">
-                <div className="flex items-center gap-2 rounded-2xl bg-neutral-900/80 text-white backdrop-blur-md px-4 py-2 shadow-lg">
-                    <Button size="sm" variant="ghost" onClick={handleDownload} className="text-white">
+                <div className="flex items-center gap-2 rounded-2xl bg-white text-white backdrop-blur-md px-4 py-2 shadow-lg">
+                    <Button size="sm" onClick={handleDownload} className="text-black bg-white">
                         <Download className="w-4 h-4 mr-2" />
                         Descargar
                     </Button>
-                    <div className="w-px h-5 bg-white/20" />
-                    <Button size="sm" variant="ghost" onClick={handleShare} className="text-white">
+                    <div className="w-px h-5 bg-white" />
+                    <Button size="sm" onClick={handleShare} className="text-black bg-white">
                         <Share2 className="w-4 h-4 mr-2" />
                         Compartir
                     </Button>
@@ -94,7 +94,7 @@ export default function ResultStep({
 
             {/* ===================== BLOQUE RENDER ===================== */}
             {/* Contenedor relativo para poder anclar el panel a la DERECHA, fuera del bloque */}
-            <section className="relative max-w-[1100px] w-full mx-auto">
+            <section className="relative max-w-[1250px] w-full mx-auto">
                 <Card className=" border-0 shadow-2xl rounded-3xl bg-gradient-to-br from-white to-neutral-50/50">
                     <CardContent className="p-0">
                         <div className="relative aspect-[4/3] bg-neutral-100">
