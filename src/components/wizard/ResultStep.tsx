@@ -2,7 +2,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle2, MessageSquare, RefreshCw, Download, Share2 } from "lucide-react";
+import {
+    CheckCircle2,
+    MessageSquare,
+    RefreshCw,
+    Download,
+    Share2,
+    Tag,
+} from "lucide-react";
 
 interface ResultStepProps {
     resultImageUrl: string;
@@ -17,7 +24,7 @@ export default function ResultStep({
     userName,
     onFeedback,
     onAccept,
-    isProcessing
+    isProcessing,
 }: ResultStepProps) {
     const [feedback, setFeedback] = useState("");
     const [showFeedback, setShowFeedback] = useState(false);
@@ -30,8 +37,34 @@ export default function ResultStep({
         }
     };
 
+    const handleDownload = () => {
+        const a = document.createElement("a");
+        a.href = resultImageUrl;
+        a.download = "render.png";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+    };
+
+    const handleShare = async () => {
+        try {
+            if ((navigator as any).share) {
+                await (navigator as any).share({
+                    title: "Mi render",
+                    text: "Mirá cómo quedó mi render generado por IA",
+                    url: resultImageUrl,
+                });
+                return;
+            }
+            window.open(resultImageUrl, "_blank");
+        } catch {
+            window.open(resultImageUrl, "_blank");
+        }
+    };
+
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 overflow-x-hidden">
+            {/* Header */}
             <div className="text-center">
                 <div className="w-16 h-16 bg-gradient-to-br from-emerald-100 to-teal-200 rounded-3xl flex items-center justify-center mb-6 mx-auto">
                     <CheckCircle2 className="w-8 h-8 text-emerald-600" />
@@ -44,44 +77,105 @@ export default function ResultStep({
                 </p>
             </div>
 
-            {/* Result Image */}
-            <Card className="overflow-hidden border-0 shadow-2xl rounded-3xl bg-gradient-to-br from-white to-neutral-50/50">
-                <CardContent className="p-0">
-                    <div className="relative aspect-[4/3] bg-neutral-100">
-                        <img
-                            src={resultImageUrl}
-                            alt="Render generado"
-                            className="w-full h-full object-cover"
-                        />
-                        <div className="absolute top-4 right-4 flex gap-2">
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                className="bg-white/90 backdrop-blur-sm border-white/20 hover:bg-white"
-                            >
-                                <Download className="w-4 h-4 mr-2" />
-                                Descargar
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                className="bg-white/90 backdrop-blur-sm border-white/20 hover:bg-white"
-                            >
-                                <Share2 className="w-4 h-4" />
-                            </Button>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+            {/* Toolbar centrada arriba */}
+            <div className="flex justify-center items-center mt-2">
+                <div className="flex items-center gap-2 rounded-2xl bg-neutral-900/80 text-white backdrop-blur-md px-4 py-2 shadow-lg">
+                    <Button size="sm" variant="ghost" onClick={handleDownload} className="text-white">
+                        <Download className="w-4 h-4 mr-2" />
+                        Descargar
+                    </Button>
+                    <div className="w-px h-5 bg-white/20" />
+                    <Button size="sm" variant="ghost" onClick={handleShare} className="text-white">
+                        <Share2 className="w-4 h-4 mr-2" />
+                        Compartir
+                    </Button>
+                </div>
+            </div>
 
-            {/* Action Buttons */}
+            {/* ===================== BLOQUE RENDER ===================== */}
+            {/* Contenedor relativo para poder anclar el panel a la DERECHA, fuera del bloque */}
+            <section className="relative max-w-[1100px] w-full mx-auto">
+                <Card className=" border-0 shadow-2xl rounded-3xl bg-gradient-to-br from-white to-neutral-50/50">
+                    <CardContent className="p-0">
+                        <div className="relative aspect-[4/3] bg-neutral-100">
+                            <img
+                                src={resultImageUrl}
+                                alt="Render generado"
+                                className="w-full h-full object-cover select-none"
+                            />
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* ===== Panel de productos FLOTANTE a la DERECHA (no altera el render) =====
+            Aparece sólo en xl+; se posiciona justo afuera del contenedor usando left-full */}
+                <div className="overflow-x-hidden flex absolute top-4 left-full ml-16 2xl:ml-24">
+                    <div className="w-[380px] 2xl:w-[420px]">
+                        <Card className="border-0 rounded-3xl shadow-2xl bg-white/95 ring-1 ring-neutral-100">
+                            <CardContent className="p-5">
+                                <div className="flex items-start gap-3 mb-3">
+                                    <div className="size-9 rounded-xl bg-emerald-50 text-emerald-700 grid place-items-center ring-1 ring-emerald-100">
+                                        <Tag className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-semibold text-neutral-900">
+                                            Productos del render
+                                        </h3>
+                                        <p className="text-sm text-neutral-500">
+                                            Aquí verás los ítems detectados y su precio de referencia.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Placeholder para n8n/Supabase */}
+                                <div className="min-h-[240px] rounded-2xl bg-neutral-50/70 ring-1 ring-neutral-100 grid place-items-center text-sm text-neutral-500">
+                                    Próximamente verás aquí los productos detectados ✨
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
+            </section>
+
+            {/* ===== Fallback del panel en mobile/tablet (no flotante) ===== */}
+            <section className="w-full">
+                <div className="max-w-[1100px] mx-auto">
+                    <Card className="border-0 rounded-3xl shadow-xl bg-white/95 ring-1 ring-neutral-100">
+                        <CardContent className="p-5">
+                            <div className="flex items-start gap-3 mb-3">
+                                <div className="size-9 rounded-xl bg-emerald-50 text-emerald-700 grid place-items-center ring-1 ring-emerald-100">
+                                    <Tag className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-semibold text-neutral-900">
+                                        Productos del render
+                                    </h3>
+                                    <p className="text-sm text-neutral-500">
+                                        Aquí verás los ítems detectados y su precio de referencia.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="min-h-[200px] rounded-2xl bg-neutral-50/70 ring-1 ring-neutral-100 grid place-items-center text-sm text-neutral-500">
+                                Próximamente verás aquí los productos detectados ✨
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </section>
+
+            {/* Botones de acción */}
             <div className="space-y-4">
                 {!showFeedback ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Button
                             onClick={onAccept}
                             disabled={isProcessing}
-                            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-6 py-6 rounded-2xl font-medium text-lg shadow-lg"
+                            className="px-6 py-6 rounded-2xl font-semibold text-lg text-white
+                         bg-gradient-to-r from-teal-600 to-emerald-600
+                         hover:from-teal-700 hover:to-emerald-700
+                         shadow-lg hover:shadow-xl transition-all
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-teal-500
+                         disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                             <CheckCircle2 className="w-5 h-5 mr-2" />
                             ¡Me encanta! Aceptar
@@ -90,8 +184,12 @@ export default function ResultStep({
                         <Button
                             onClick={() => setShowFeedback(true)}
                             disabled={isProcessing}
-                            variant="outline"
-                            className="border-2 border-violet-200 hover:bg-violet-50 text-violet-700 px-6 py-6 rounded-2xl font-medium text-lg"
+                            className="px-6 py-6 rounded-2xl font-semibold text-lg
+                         text-white bg-gradient-to-r from-emerald-600 to-teal-600
+                         hover:from-emerald-700 hover:to-teal-700
+                         shadow-md hover:shadow-lg transition-all
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-emerald-500
+                         disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                             <MessageSquare className="w-5 h-5 mr-2" />
                             Dar feedback
@@ -108,7 +206,7 @@ export default function ResultStep({
                             <Textarea
                                 value={feedback}
                                 onChange={(e) => setFeedback(e.target.value)}
-                                placeholder="Describe qué te gustaría cambiar o mejorar en el render. Por ejemplo: 'Me gustaría más luz natural', 'Cambiar el color de las paredes', 'Agregar más plantas', etc."
+                                placeholder="Describe qué te gustaría cambiar o mejorar en el render. Por ejemplo: 'Más luz natural', 'Cambiar color de paredes', etc."
                                 className="min-h-[120px] bg-white border-violet-200 focus:border-violet-400 focus:ring-violet-400/20"
                                 disabled={isProcessing}
                             />
@@ -131,11 +229,7 @@ export default function ResultStep({
                                         </>
                                     )}
                                 </Button>
-                                <Button
-                                    onClick={() => setShowFeedback(false)}
-                                    variant="outline"
-                                    disabled={isProcessing}
-                                >
+                                <Button onClick={() => setShowFeedback(false)} variant="outline" disabled={isProcessing}>
                                     Cancelar
                                 </Button>
                             </div>

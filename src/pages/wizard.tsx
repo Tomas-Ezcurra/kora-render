@@ -175,7 +175,7 @@ if (image_url) {
                 aria-hidden="true"
             />
             <div className="absolute inset-0 -z-10 bg-gradient-to-b from-white/85 via-white/80 to-white/70" />
-            <div className="absolute -z-10 -inset-x-32 -top-40 h-80 bg-gradient-to-b from-violet-300/25 to-transparent blur-3xl" />
+            <div className="absolute -z-10 max-w-[100vw] overflow-x-hidden -inset-x-32 -top-40 h-80 bg-gradient-to-b from-violet-300/25 to-transparent blur-3xl" />
 
             {showStepIndicator && (
                 <header className="sticky top-0 z-40 px-4 md:px-6 lg:px-8 pt-4 pb-3">
