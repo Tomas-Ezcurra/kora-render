@@ -10,6 +10,14 @@ import {
     Share2,
     Tag,
 } from "lucide-react";
+import type { RenderProduct } from "@/pages/wizard";
+
+/** Convierte base64 puro a data URL; si ya es data: o http(s), lo deja igual */
+function toDataUrl(image?: string, mimeType?: string) {
+    if (!image || typeof image !== "string") return "";
+    if (image.startsWith("data:") || image.startsWith("http")) return image;
+    return `data:${mimeType || "image/jpeg"};base64,${image}`;
+}
 
 interface ResultStepProps {
     resultImageUrl: string;
@@ -17,6 +25,7 @@ interface ResultStepProps {
     onFeedback: (feedback: string) => void;
     onAccept: () => void;
     isProcessing: boolean;
+    products?: RenderProduct[]; // <<--- DISPLAY
 }
 
 export default function ResultStep({
@@ -25,6 +34,7 @@ export default function ResultStep({
     onFeedback,
     onAccept,
     isProcessing,
+    products = [],
 }: ResultStepProps) {
     const [feedback, setFeedback] = useState("");
     const [showFeedback, setShowFeedback] = useState(false);
@@ -62,6 +72,60 @@ export default function ResultStep({
         }
     };
 
+    /** UI para el listado de productos */
+    const ProductsList = (
+        <>
+            {products.length === 0 ? (
+                <div className="min-h-[240px] rounded-2xl bg-neutral-50/70 ring-1 ring-neutral-100 grid place-items-center text-sm text-neutral-500">
+                    Próximamente verás aquí los productos detectados ✨
+                </div>
+            ) : (
+                <ul className="grid grid-cols-1 gap-3">
+                    {products.map((p) => {
+                        const src = toDataUrl(p.image, p.mimeType);
+                        const title = p.product || p.name || "Producto";
+                        return (
+                            <li
+                                key={String(p.id ?? title)}
+                                className="flex items-center gap-3 p-3 rounded-xl ring-1 ring-neutral-100 bg-white/80"
+                            >
+                                <div className="shrink-0 w-16 h-16 rounded-lg overflow-hidden ring-1 ring-neutral-200 bg-neutral-100">
+                                    {src ? (
+                                        <img
+                                            src={src}
+                                            alt={title}
+                                            className="w-full h-full object-cover"
+                                            loading="lazy"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full grid place-items-center text-xs text-neutral-400">
+                                            S/IMG
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="min-w-0">
+                                    <div className="text-sm font-semibold text-neutral-900 truncate">
+                                        {title}
+                                    </div>
+                                    {p.description && (
+                                        <div className="text-xs text-neutral-600 line-clamp-2">
+                                            {p.description}
+                                        </div>
+                                    )}
+                                    {typeof p.price === "number" && (
+                                        <div className="text-xs text-emerald-700 mt-1">
+                                            ${p.price.toFixed(2)}
+                                        </div>
+                                    )}
+                                </div>
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
+        </>
+    );
+
     return (
         <div className="space-y-8 overflow-x-hidden">
             {/* Header */}
@@ -93,7 +157,6 @@ export default function ResultStep({
             </div>
 
             {/* ===================== BLOQUE RENDER ===================== */}
-            {/* Contenedor relativo para poder anclar el panel a la DERECHA, fuera del bloque */}
             <section className="relative max-w-[1250px] w-full mx-auto">
                 <Card className=" border-0 shadow-2xl rounded-3xl bg-gradient-to-br from-white to-neutral-50/50">
                     <CardContent className="p-0">
@@ -107,8 +170,7 @@ export default function ResultStep({
                     </CardContent>
                 </Card>
 
-                {/* ===== Panel de productos FLOTANTE a la DERECHA (no altera el render) =====
-            Aparece sólo en xl+; se posiciona justo afuera del contenedor usando left-full */}
+                {/* Panel de productos FLOTANTE a la DERECHA */}
                 <div className="overflow-x-hidden flex absolute top-4 left-full ml-16 2xl:ml-24">
                     <div className="w-[380px] 2xl:w-[420px]">
                         <Card className="border-0 rounded-3xl shadow-2xl bg-white/95 ring-1 ring-neutral-100">
@@ -127,17 +189,14 @@ export default function ResultStep({
                                     </div>
                                 </div>
 
-                                {/* Placeholder para n8n/Supabase */}
-                                <div className="min-h-[240px] rounded-2xl bg-neutral-50/70 ring-1 ring-neutral-100 grid place-items-center text-sm text-neutral-500">
-                                    Próximamente verás aquí los productos detectados ✨
-                                </div>
+                                {ProductsList}
                             </CardContent>
                         </Card>
                     </div>
                 </div>
             </section>
 
-            {/* ===== Fallback del panel en mobile/tablet (no flotante) ===== */}
+            {/* Fallback del panel en mobile/tablet (no flotante) */}
             <section className="w-full">
                 <div className="max-w-[1100px] mx-auto">
                     <Card className="border-0 rounded-3xl shadow-xl bg-white/95 ring-1 ring-neutral-100">
@@ -155,9 +214,8 @@ export default function ResultStep({
                                     </p>
                                 </div>
                             </div>
-                            <div className="min-h-[200px] rounded-2xl bg-neutral-50/70 ring-1 ring-neutral-100 grid place-items-center text-sm text-neutral-500">
-                                Próximamente verás aquí los productos detectados ✨
-                            </div>
+
+                            {ProductsList}
                         </CardContent>
                     </Card>
                 </div>

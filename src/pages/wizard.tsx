@@ -16,6 +16,55 @@ const BG_URL =
 
 type WizardStep = "profile" | "photos" | "loading" | "result";
 
+/** --------- TIPOS PARA EL DISPLAY --------- */
+export type RenderProduct = {
+    id?: number | string;
+    product?: string;   // nombre puede venir como 'product' o 'name'
+    name?: string;
+    description?: string;
+    image?: string;     // base64 puro o data URL o http(s)
+    mimeType?: string;  // opcional si llega
+    price?: number;
+};
+
+/** Extrae productos aunque vengan anidados en usageMetadata y/o usageMetadata sea string JSON */
+function extractProducts(resp: any): RenderProduct[] {
+    if (!resp) return [];
+
+    // 1) raíz común
+    let products =
+        resp.products ||
+        resp.productos ||
+        resp?.data?.products ||
+        resp?.data?.productos;
+
+    // 2) usageMetadata (puede venir como objeto o string)
+    let meta =
+        resp.usageMetadata ||
+        resp?.data?.usageMetadata ||
+        resp?.candidates?.[0]?.usageMetadata;
+
+    if (!products && meta) {
+        if (typeof meta === "string") {
+            try { meta = JSON.parse(meta); } catch { }
+        }
+        products = meta?.products || meta?.productos;
+    }
+
+    // 3) validación y normalización ligera
+    if (!Array.isArray(products)) return [];
+
+    return products.map((p: any, idx: number) => ({
+        id: p.id ?? idx,
+        product: p.product ?? p.name ?? "",
+        name: p.name ?? p.product ?? "",
+        description: p.description ?? "",
+        image: p.image ?? p.img ?? "",
+        mimeType: p.mimeType || p.mimetype,
+        price: p.price,
+    })) as RenderProduct[];
+}
+
 export default function WizardPage() {
     const router = useRouter();
     const [currentStep, setCurrentStep] = useState<WizardStep>("profile");
@@ -32,7 +81,9 @@ export default function WizardPage() {
         livingStyle: "",
         userId: undefined,
     });
+
     const [resultImageUrl, setResultImageUrl] = useState("");
+    const [products, setProducts] = useState<RenderProduct[]>([]); // <<--- DISPLAY
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState("");
 
@@ -56,7 +107,7 @@ export default function WizardPage() {
         setIsProcessing(true);
 
         try {
-            console.log("Comprimiendo imagen...");
+            // 1) Comprimir
             const firstImageBase64 = await compressImage(
                 wizardData.photos[0],
                 1920,
@@ -65,30 +116,28 @@ export default function WizardPage() {
             );
 
             const estimatedSize = estimateBase64Size(firstImageBase64);
-            console.log(`Tamaño estimado de la imagen: ${formatFileSize(estimatedSize)}`);
-
-            // Validate size (max 10MB in base64)
             if (estimatedSize > 10 * 1024 * 1024) {
                 throw new Error("La imagen es demasiado grande incluso después de la compresión. Por favor, intenta con una imagen más pequeña.");
             }
 
-            console.log("Enviando solicitud a n8n...");
-            const { image_url } = await sendInitialRequest(
-    wizardData.userId,
-    wizardData.prompt,
-    firstImageBase64
-);
+            // 2) Llamado a n8n
+            const resp = await sendInitialRequest(
+                wizardData.userId,
+                wizardData.prompt,
+                firstImageBase64
+            );
 
-if (image_url) {
-    setResultImageUrl(image_url);
-    setCurrentStep("result");
-} else {
-    throw new Error("No se recibió URL de imagen en la respuesta");
-}
+            const img = (resp as any)?.image_url;
+            if (!img) throw new Error("No se recibió URL de imagen en la respuesta");
 
+            setResultImageUrl(img);
+            setProducts(extractProducts(resp)); // <<--- CARGA DISPLAY
+            setCurrentStep("result");
         } catch (err) {
             console.error("Error al enviar solicitud inicial:", err);
-            const errorMessage = err instanceof Error ? err.message : "Hubo un error al generar tu render. Por favor, intenta nuevamente.";
+            const errorMessage = err instanceof Error
+                ? err.message
+                : "Hubo un error al generar tu render. Por favor, intenta nuevamente.";
             setError(errorMessage);
             setCurrentStep("photos");
         } finally {
@@ -106,7 +155,6 @@ if (image_url) {
         setError("");
 
         try {
-            console.log("Comprimiendo imagen para feedback...");
             const firstImageBase64 = await compressImage(
                 wizardData.photos[0],
                 1920,
@@ -115,27 +163,28 @@ if (image_url) {
             );
 
             const estimatedSize = estimateBase64Size(firstImageBase64);
-            console.log(`Tamaño estimado de la imagen: ${formatFileSize(estimatedSize)}`);
-
             if (estimatedSize > 10 * 1024 * 1024) {
                 throw new Error("La imagen es demasiado grande incluso después de la compresión.");
             }
 
-            const response = await sendFeedbackRequest(
+            const resp = await sendFeedbackRequest(
                 wizardData.userId,
                 feedback,
                 resultImageUrl,
                 firstImageBase64
             );
 
-            if (response.image_url) {
-                setResultImageUrl(response.image_url);
-            } else {
+            if (!resp?.image_url) {
                 throw new Error("No se recibió URL de imagen en la respuesta de feedback");
             }
+
+            setResultImageUrl(resp.image_url);
+            setProducts(extractProducts(resp)); // <<--- REFRESCA DISPLAY
         } catch (err) {
             console.error("Error al enviar feedback:", err);
-            const errorMessage = err instanceof Error ? err.message : "Hubo un error al regenerar tu render. Por favor, intenta nuevamente.";
+            const errorMessage = err instanceof Error
+                ? err.message
+                : "Hubo un error al regenerar tu render. Por favor, intenta nuevamente.";
             setError(errorMessage);
         } finally {
             setIsProcessing(false);
@@ -198,29 +247,20 @@ if (image_url) {
                                         const active = getCurrentStepNumber() === s.number;
                                         const done = getCurrentStepNumber() > s.number;
                                         return (
-                                            <li
-                                                key={s.key}
-                                                className="flex items-center justify-center"
-                                                aria-current={active ? "step" : undefined}
-                                            >
+                                            <li key={s.key} className="flex items-center justify-center" aria-current={active ? "step" : undefined}>
                                                 <div className="flex items-center gap-3">
                                                     <span
                                                         className={[
                                                             "inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold",
-                                                            active
-                                                                ? "text-white bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-md"
-                                                                : done
-                                                                    ? "text-violet-800 bg-violet-200"
+                                                            active ? "text-white bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-md"
+                                                                : done ? "text-violet-800 bg-violet-200"
                                                                     : "text-violet-700 bg-violet-100",
                                                         ].join(" ")}
                                                     >
                                                         {s.number}
                                                     </span>
                                                     <div className="hidden sm:block leading-tight">
-                                                        <div
-                                                            className={`text-sm ${active ? "text-neutral-900 font-semibold" : "text-neutral-800"
-                                                                }`}
-                                                        >
+                                                        <div className={`text-sm ${active ? "text-neutral-900 font-semibold" : "text-neutral-800"}`}>
                                                             {s.title}
                                                         </div>
                                                         <div className="text-xs text-neutral-500">{s.description}</div>
@@ -287,6 +327,7 @@ if (image_url) {
                                     onFeedback={handleFeedback}
                                     onAccept={handleAccept}
                                     isProcessing={isProcessing}
+                                    products={products}          // <<--- PASO EL DISPLAY
                                 />
                             </CardContent>
                         </Card>
