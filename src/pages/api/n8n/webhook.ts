@@ -1,65 +1,64 @@
-import { NextApiRequest, NextApiResponse } from "next";
+import type { NextApiRequest, NextApiResponse } from "next";
 
-const N8N_WEBHOOK_URL = "https://n8n.tucbbs.com.ar/webhook/c0205606-9a90-4050-a811-d03bab2f09b4";
+const INITIAL_WEBHOOK =
+    process.env.N8N_INITIAL_WEBHOOK_URL ||
+    "https://n8n.tucbbs.com.ar/webhook/c0205606-9a90-4050-a811-d03bab2f09b4";
 
-// Increase body size limit to 50MB
+const FEEDBACK_WEBHOOK =
+    process.env.N8N_FEEDBACK_WEBHOOK_URL ||
+    "https://n8n.tucbbs.com.ar/webhook/feedback-kora";
+
+type Data = any;
+
 export const config = {
     api: {
         bodyParser: {
-            sizeLimit: "50mb",
+            sizeLimit: "12mb",
         },
     },
 };
 
 export default async function handler(
     req: NextApiRequest,
-    res: NextApiResponse
+    res: NextApiResponse<Data>
 ) {
     if (req.method !== "POST") {
-        return res.status(405).json({ error: "Method not allowed" });
+        res.setHeader("Allow", "POST");
+        return res.status(405).json({ message: "Method Not Allowed" });
     }
 
     try {
-        const payload = req.body;
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        const pagina =
+            typeof body?.pagina === "string" ? (body.pagina as string) : undefined;
 
-        console.log("Forwarding request to n8n webhook...");
-        console.log("Payload size:", JSON.stringify(payload).length, "bytes");
+        const target = pagina === "feedback" ? FEEDBACK_WEBHOOK : INITIAL_WEBHOOK;
 
-        // Forward the request to n8n webhook
-        const response = await fetch(N8N_WEBHOOK_URL, {
+        const upstream = await fetch(target, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error("N8N webhook error:", response.status, errorText);
+        const status = upstream.status;
+        const text = await upstream.text().catch(() => "");
+        const contentType = upstream.headers.get("content-type") || "";
 
-            if (response.status === 413) {
-                return res.status(413).json({
-                    error: "La imagen es demasiado grande. Por favor, intenta con una imagen más pequeña.",
-                    details: "Payload Too Large"
-                });
+        let payload: any;
+        try {
+            if (contentType.includes("application/json")) {
+                payload = JSON.parse(text);
+            } else {
+                payload = JSON.parse(text);
             }
-
-            return res.status(response.status).json({
-                error: `N8N webhook error: ${response.status}`,
-                details: errorText
-            });
+        } catch {
+            payload = { raw: text };
         }
 
-        const data = await response.json();
-        console.log("N8N webhook response received successfully");
-        return res.status(200).json(data);
-
-    } catch (error) {
-        console.error("Error calling n8n webhook:", error);
-        return res.status(500).json({
-            error: "Error calling webhook",
-            message: error instanceof Error ? error.message : "Unknown error"
-        });
+        return res.status(status).json(payload);
+    } catch (error: any) {
+        return res
+            .status(502)
+            .json({ message: "Proxy error to n8n", error: error?.message || "unknown" });
     }
 }

@@ -33,7 +33,7 @@ export default function UserStep({ data, onChange, onNext }: UserStepProps) {
 
     const handleNext = () => {
         if (!data.userName?.trim() || !userId) return;
-        
+
         onChange({ ...data, userId });
         onNext();
     };
@@ -73,8 +73,8 @@ export default function UserStep({ data, onChange, onNext }: UserStepProps) {
                         placeholder="Tu nombre"
                         aria-label="Tu nombre"
                         className={`pl-12 pr-4 h-12 text-[16px] rounded-2xl bg-white/85 border ${touched && !data.userName?.trim()
-                                ? "border-rose-300 focus-visible:ring-rose-200"
-                                : "border-neutral-200 focus-visible:ring-violet-200"
+                            ? "border-rose-300 focus-visible:ring-rose-200"
+                            : "border-neutral-200 focus-visible:ring-violet-200"
                             } focus-visible:ring-2 focus-visible:border-violet-400 transition`}
                     />
                 </div>

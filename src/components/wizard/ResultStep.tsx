@@ -10,7 +10,7 @@ import {
     Share2,
     Tag,
 } from "lucide-react";
-import type { RenderProduct } from "@/pages/wizard";
+import type { RenderProduct } from "@/types/products";
 
 /** Convierte base64 puro a data URL; si ya es data: o http(s), lo deja igual */
 function toDataUrl(image?: string, mimeType?: string) {
@@ -112,11 +112,23 @@ export default function ResultStep({
                                             {p.description}
                                         </div>
                                     )}
-                                    {typeof p.price === "number" && (
-                                        <div className="text-xs text-emerald-700 mt-1">
-                                            ${p.price.toFixed(2)}
-                                        </div>
-                                    )}
+                                    <div className="flex items-center gap-2 mt-1">
+                                        {typeof p.price === "number" && (
+                                            <div className="text-xs text-emerald-700">
+                                                ${p.price.toFixed(2)}
+                                            </div>
+                                        )}
+                                        {p.url && (
+                                            <a
+                                                href={p.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs text-blue-600 hover:underline"
+                                            >
+                                                Ver producto
+                                            </a>
+                                        )}
+                                    </div>
                                 </div>
                             </li>
                         );

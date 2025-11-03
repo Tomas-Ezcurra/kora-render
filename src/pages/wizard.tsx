@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
@@ -10,59 +10,83 @@ import ResultStep from "@/components/wizard/ResultStep";
 import { WizardData } from "@/types/wizard";
 import { sendInitialRequest, sendFeedbackRequest } from "@/services/n8nService";
 import { compressImage, formatFileSize, estimateBase64Size } from "@/lib/imageCompression";
+import type { RenderProduct } from "@/types/products";
 
 const BG_URL =
     "https://res.cloudinary.com/dfrhrnwwi/image/upload/v1758134089/Free_Vector___Blue_blurred_background_design_h2wclx.jpg";
 
+const PRODUCTS_KEY = "kora_render_products_v1";
+
 type WizardStep = "profile" | "photos" | "loading" | "result";
 
-/** --------- TIPOS PARA EL DISPLAY --------- */
-export type RenderProduct = {
-    id?: number | string;
-    product?: string;   // nombre puede venir como 'product' o 'name'
-    name?: string;
-    description?: string;
-    image?: string;     // base64 puro o data URL o http(s)
-    mimeType?: string;  // opcional si llega
-    price?: number;
-};
+/** Mock products para testing (se usarán si n8n no devuelve productos) */
+const MOCK_PRODUCTS: RenderProduct[] = [
+    {
+        id: "mock-1",
+        name: "Sofá Modular Gris",
+        product: "Sofá Modular Gris",
+        description: "Sofá de 3 cuerpos con tela premium, diseño moderno y cómodo",
+        price: 450000,
+        image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=400&h=400&fit=crop",
+    },
+    {
+        id: "mock-2",
+        name: "Mesa de Centro Madera",
+        product: "Mesa de Centro Madera",
+        description: "Mesa baja de madera natural con acabado mate, estilo nórdico",
+        price: 120000,
+        image: "https://images.unsplash.com/photo-1595428774223-ef52624120d2?w=400&h=400&fit=crop",
+    },
+    {
+        id: "mock-3",
+        name: "Lámpara de Pie LED",
+        product: "Lámpara de Pie LED",
+        description: "Lámpara ajustable con luz LED cálida, diseño minimalista",
+        price: 75000,
+        image: "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=400&h=400&fit=crop",
+    },
+];
 
-/** Extrae productos aunque vengan anidados en usageMetadata y/o usageMetadata sea string JSON */
+/** Extrae productos desde la respuesta normalizada de n8nService */
 function extractProducts(resp: any): RenderProduct[] {
-    if (!resp) return [];
-
-    // 1) raíz común
-    let products =
-        resp.products ||
-        resp.productos ||
-        resp?.data?.products ||
-        resp?.data?.productos;
-
-    // 2) usageMetadata (puede venir como objeto o string)
-    let meta =
-        resp.usageMetadata ||
-        resp?.data?.usageMetadata ||
-        resp?.candidates?.[0]?.usageMetadata;
-
-    if (!products && meta) {
-        if (typeof meta === "string") {
-            try { meta = JSON.parse(meta); } catch { }
-        }
-        products = meta?.products || meta?.productos;
+    if (!resp) {
+        console.log("[extractProducts] Respuesta vacía, usando productos mock");
+        return MOCK_PRODUCTS;
     }
 
-    // 3) validación y normalización ligera
-    if (!Array.isArray(products)) return [];
+    console.log("[extractProducts] Respuesta normalizada recibida:", resp);
 
-    return products.map((p: any, idx: number) => ({
+    // Los productos ya vienen completamente normalizados desde n8nService
+    // (imágenes convertidas a data URLs, campos validados, etc.)
+    const rawProducts = resp.productos;
+
+    if (!Array.isArray(rawProducts)) {
+        console.log("[extractProducts] productos no es un array, usando mock");
+        console.log("[extractProducts] Tipo recibido:", typeof rawProducts, rawProducts);
+        return MOCK_PRODUCTS;
+    }
+
+    if (rawProducts.length === 0) {
+        console.log("[extractProducts] Array de productos vacío, usando mock");
+        return MOCK_PRODUCTS;
+    }
+
+    // Los productos ya están normalizados, solo asegurar que tienen el formato correcto
+    const normalized = rawProducts.map((p: any, idx: number) => ({
         id: p.id ?? idx,
-        product: p.product ?? p.name ?? "",
-        name: p.name ?? p.product ?? "",
+        product: p.product ?? p.name ?? `Producto ${idx + 1}`,
+        name: p.product ?? p.name ?? `Producto ${idx + 1}`,
         description: p.description ?? "",
-        image: p.image ?? p.img ?? "",
-        mimeType: p.mimeType || p.mimetype,
+        image: p.image ?? "",
+        mimeType: p.mimeType ?? "image/jpeg",
         price: p.price,
+        url: p.url,
     })) as RenderProduct[];
+
+    console.log("[extractProducts] ✅ Productos reales extraídos:", normalized.length, "productos");
+    console.log("[extractProducts] Primer producto:", normalized[0]);
+
+    return normalized;
 }
 
 export default function WizardPage() {
@@ -91,6 +115,28 @@ export default function WizardPage() {
         { key: "profile" as const, number: 1, title: "Perfil", description: "Conozcámonos" },
         { key: "photos" as const, number: 2, title: "Fotos", description: "Sube tu espacio" },
     ];
+
+    // Cargar productos guardados (mock) al montar
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            const saved = localStorage.getItem(PRODUCTS_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved) as RenderProduct[];
+                if (Array.isArray(parsed) && parsed.length > 0) setProducts(parsed);
+            }
+        } catch { }
+    }, []);
+
+    // Guardar productos cuando existan
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            if (products.length > 0) {
+                localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+            }
+        } catch { }
+    }, [products]);
 
     const handleProfileNext = () => {
         setCurrentStep("photos");
@@ -130,8 +176,12 @@ export default function WizardPage() {
             const img = (resp as any)?.image_url;
             if (!img) throw new Error("No se recibió URL de imagen en la respuesta");
 
+            // Extraer productos directamente del JSON de n8n (ya vienen procesados)
+            const finalProducts = extractProducts(resp);
+            console.log("[wizard] Productos recibidos de n8n:", finalProducts);
+
             setResultImageUrl(img);
-            setProducts(extractProducts(resp)); // <<--- CARGA DISPLAY
+            setProducts(finalProducts);
             setCurrentStep("result");
         } catch (err) {
             console.error("Error al enviar solicitud inicial:", err);
@@ -178,8 +228,12 @@ export default function WizardPage() {
                 throw new Error("No se recibió URL de imagen en la respuesta de feedback");
             }
 
+            // Extraer productos directamente del JSON de n8n
+            const finalProducts = extractProducts(resp);
+            console.log("[wizard] Productos recibidos de n8n (feedback):", finalProducts);
+
             setResultImageUrl(resp.image_url);
-            setProducts(extractProducts(resp)); // <<--- REFRESCA DISPLAY
+            setProducts(finalProducts);
         } catch (err) {
             console.error("Error al enviar feedback:", err);
             const errorMessage = err instanceof Error
@@ -337,3 +391,4 @@ export default function WizardPage() {
         </div>
     );
 }
+
